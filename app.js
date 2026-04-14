@@ -8,11 +8,6 @@ class QuadTree {
     this.children = null;
   }
 
-  clear() {
-    this.points = [];
-    this.children = null;
-  }
-
   subdivide() {
     const { x, y, w, h } = this.bounds;
     const hw = w / 2;
@@ -89,31 +84,46 @@ const candidateList = document.getElementById('candidateList');
 const logList = document.getElementById('logList');
 const layerTree = document.getElementById('layerTree');
 
-const palette = ['#2B90D9', '#6A67CE', '#DB6E59', '#2CA58D', '#F4B860', '#E07A5F'];
+const palette = ['#4daaf0', '#7f71e5', '#e58977', '#35ad95', '#eab268', '#ca6471'];
 
 let mode = 'select';
 let selectedId = null;
+let lastSelectedId = null;
 let hoveredCell = null;
 let items = [];
 let quadtree;
 
+function syncCanvasResolution() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = sceneCanvas.getBoundingClientRect();
+  const width = Math.max(960, Math.floor(rect.width));
+  const height = Math.max(560, Math.floor(rect.height));
+
+  sceneCanvas.width = Math.floor(width * dpr);
+  sceneCanvas.height = Math.floor(height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  rebuildIndex();
+}
+
 function seedScene() {
   const seeded = [
-    { id: 'hero', name: 'Hero Section', x: 90, y: 70, w: 430, h: 280, depth: 0, z: 1, parent: null, color: palette[0] },
-    { id: 'hero_badges', name: 'Badge Group', x: 180, y: 185, w: 220, h: 105, depth: 1, z: 2, parent: 'hero', color: palette[1] },
-    { id: 'hero_badge_text', name: 'Badge Text', x: 220, y: 220, w: 150, h: 42, depth: 2, z: 3, parent: 'hero_badges', color: palette[4] },
-    { id: 'pricing', name: 'Pricing Card', x: 560, y: 120, w: 280, h: 310, depth: 0, z: 2, parent: null, color: palette[2] },
-    { id: 'pricing_cta', name: 'CTA Button', x: 625, y: 345, w: 145, h: 56, depth: 1, z: 4, parent: 'pricing', color: palette[3] },
-    { id: 'footer', name: 'Footer Bar', x: 120, y: 430, w: 760, h: 135, depth: 0, z: 0, parent: null, color: palette[5] },
+    { id: 'hero', name: 'Hero Section', x: 90, y: 80, w: 470, h: 300, depth: 0, z: 1, parent: null, color: palette[0] },
+    { id: 'hero_badges', name: 'Badge Group', x: 200, y: 210, w: 250, h: 120, depth: 1, z: 2, parent: 'hero', color: palette[1] },
+    { id: 'hero_badge_text', name: 'Badge Text', x: 248, y: 252, w: 155, h: 44, depth: 2, z: 3, parent: 'hero_badges', color: palette[4] },
+    { id: 'pricing', name: 'Pricing Card', x: 640, y: 130, w: 310, h: 350, depth: 0, z: 2, parent: null, color: palette[2] },
+    { id: 'pricing_cta', name: 'CTA Button', x: 720, y: 385, w: 165, h: 58, depth: 1, z: 4, parent: 'pricing', color: palette[3] },
+    { id: 'footer', name: 'Footer Bar', x: 140, y: 500, w: 830, h: 130, depth: 0, z: 0, parent: null, color: palette[5] },
   ];
   items = seeded;
   selectedId = null;
   rebuildTree();
-  rebuildIndex();
 }
 
 function rebuildIndex() {
-  quadtree = new QuadTree({ x: 0, y: 0, w: sceneCanvas.width, h: sceneCanvas.height }, 3, 0, 6);
+  const worldWidth = sceneCanvas.width / (window.devicePixelRatio || 1);
+  const worldHeight = sceneCanvas.height / (window.devicePixelRatio || 1);
+  quadtree = new QuadTree({ x: 0, y: 0, w: worldWidth, h: worldHeight }, 3, 0, 6);
   items.forEach((item) => quadtree.insert(item));
   render();
 }
@@ -123,12 +133,62 @@ function pathFor(item) {
   let current = item;
   while (current.parent) {
     current = items.find((el) => el.id === current.parent);
-    if (!current) {
-      break;
-    }
+    if (!current) break;
     chain.unshift(current.name);
   }
   return chain.join(' › ');
+}
+
+function ancestorChain(nodeId) {
+  const chain = [];
+  let current = items.find((el) => el.id === nodeId);
+  while (current) {
+    chain.unshift(current.id);
+    if (!current.parent) break;
+    current = items.find((el) => el.id === current.parent);
+  }
+  return chain;
+}
+
+function structuralImportance(el) {
+  const childCount = items.filter((candidate) => candidate.parent === el.id).length;
+  const leafBoost = childCount === 0 ? 8 : 0;
+  return childCount * 6 + leafBoost;
+}
+
+function intentBoost(el, x, y) {
+  const centerX = el.x + el.w / 2;
+  const centerY = el.y + el.h / 2;
+  const distance = Math.hypot(centerX - x, centerY - y);
+  const proximityBoost = Math.max(0, 20 - distance / 14);
+
+  if (!lastSelectedId) {
+    return proximityBoost;
+  }
+
+  const previousChain = ancestorChain(lastSelectedId);
+  const currentChain = ancestorChain(el.id);
+  const shared = currentChain.filter((id) => previousChain.includes(id)).length;
+  const continuityBoost = shared * 9;
+  return proximityBoost + continuityBoost;
+}
+
+function computePriority(el, x, y) {
+  const zScore = el.z * 20;
+  const depthScore = el.depth * 45;
+  const sizePenalty = Math.round((el.w * el.h) / 1800);
+  const structureScore = structuralImportance(el);
+  const intentScore = intentBoost(el, x, y);
+  const total = zScore + depthScore + structureScore + intentScore - sizePenalty;
+
+  return {
+    total: Math.round(total),
+    zScore,
+    depthScore,
+    structureScore,
+    intentScore: Math.round(intentScore),
+    sizePenalty,
+  };
 }
 
 function logStep(message) {
@@ -137,9 +197,7 @@ function logStep(message) {
   const line = document.createElement('li');
   line.innerHTML = `<span>${stamp}</span> ${message}`;
   logList.prepend(line);
-  while (logList.children.length > 24) {
-    logList.removeChild(logList.lastChild);
-  }
+  while (logList.children.length > 24) logList.removeChild(logList.lastChild);
 }
 
 function resolveSelection(x, y) {
@@ -154,15 +212,16 @@ function resolveSelection(x, y) {
   logStep(`spatial filter reduced set to <span class="hit">${hits.length} true hit(s)</span>`);
 
   const ranked = hits
-    .map((el) => ({
-      ...el,
-      priority: el.depth * 100 + el.z * 10 + Math.round((el.w * el.h) / 1000),
-    }))
-    .sort((a, b) => b.depth - a.depth || b.z - a.z || b.priority - a.priority);
+    .map((el) => {
+      const factors = computePriority(el, x, y);
+      return { ...el, priority: factors.total, factors };
+    })
+    .sort((a, b) => b.priority - a.priority || b.depth - a.depth || b.z - a.z);
 
   if (ranked[0]) {
     selectedId = ranked[0].id;
-    logStep(`winner: <span class="hit">${ranked[0].name}</span> by depth/z-index comparator`);
+    lastSelectedId = ranked[0].id;
+    logStep(`winner: <span class="hit">${ranked[0].name}</span> by hybrid intent-aware ranking`);
   } else {
     selectedId = null;
     logStep('no final winner, pointer hit empty region');
@@ -175,16 +234,19 @@ function resolveSelection(x, y) {
 }
 
 function addRandomNode(x, y) {
-  const w = 90 + Math.random() * 160;
-  const h = 60 + Math.random() * 120;
+  const w = 100 + Math.random() * 180;
+  const h = 64 + Math.random() * 120;
   const id = `node_${Date.now().toString(36)}`;
   const parent = Math.random() > 0.55 ? items[Math.floor(Math.random() * items.length)] : null;
   const depth = parent ? Math.min(parent.depth + 1, 3) : 0;
+  const worldWidth = sceneCanvas.width / (window.devicePixelRatio || 1);
+  const worldHeight = sceneCanvas.height / (window.devicePixelRatio || 1);
+
   const node = {
     id,
     name: `Dynamic Node ${items.length + 1}`,
-    x: Math.max(10, Math.min(sceneCanvas.width - w - 10, x - w / 2)),
-    y: Math.max(10, Math.min(sceneCanvas.height - h - 10, y - h / 2)),
+    x: Math.max(10, Math.min(worldWidth - w - 10, x - w / 2)),
+    y: Math.max(10, Math.min(worldHeight - h - 10, y - h / 2)),
     w,
     h,
     depth,
@@ -207,7 +269,7 @@ function updateDebugPanel(ranked, elapsed) {
       id: ${active.id}<br />
       depth: ${active.depth} · z-index: ${active.z}<br />
       path: ${pathFor(active)}<br />
-      <small>resolved in ${elapsed.toFixed(3)} ms</small>
+      <small>resolved in ${elapsed.toFixed(3)} ms · intent-aware scoring active</small>
     `;
   } else {
     selectedInfo.innerHTML = 'No element selected.';
@@ -223,7 +285,11 @@ function updateDebugPanel(ranked, elapsed) {
 
   ranked.forEach((c) => {
     const li = document.createElement('li');
-    li.textContent = `${c.name} — score ${c.priority} (d${c.depth}/z${c.z})`;
+    const score = Number.isFinite(c.priority) ? c.priority : computePriority(c, c.x + c.w / 2, c.y + c.h / 2).total;
+    const factors = c.factors
+      ? ` | z:${c.factors.zScore} depth:${c.factors.depthScore} structure:${c.factors.structureScore} intent:${c.factors.intentScore} area:-${c.factors.sizePenalty}`
+      : '';
+    li.textContent = `${c.name} — score ${score} (d${c.depth}/z${c.z})${factors}`;
     candidateList.appendChild(li);
   });
 }
@@ -231,40 +297,44 @@ function updateDebugPanel(ranked, elapsed) {
 function drawNode(node) {
   const isSelected = node.id === selectedId;
   ctx.save();
-  ctx.globalAlpha = isSelected ? 0.9 : 0.72;
+  ctx.globalAlpha = isSelected ? 0.92 : 0.74;
   ctx.fillStyle = node.color;
-  ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(255,255,255,0.3)';
+  ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(255,255,255,0.35)';
   ctx.lineWidth = isSelected ? 3 : 1;
   ctx.fillRect(node.x, node.y, node.w, node.h);
   ctx.strokeRect(node.x, node.y, node.w, node.h);
-  ctx.fillStyle = '#fff';
-  ctx.font = '12px ui-sans-serif';
-  ctx.fillText(`${node.name} (d${node.depth} z${node.z})`, node.x + 8, node.y + 18);
+
+  ctx.fillStyle = '#eef5ff';
+  ctx.font = '700 12px ui-sans-serif';
+  ctx.fillText(`${node.name} (d${node.depth} z${node.z})`, node.x + 10, node.y + 20);
   ctx.restore();
 }
 
 function drawMiniMap() {
   miniCtx.clearRect(0, 0, miniMap.width, miniMap.height);
-  miniCtx.fillStyle = '#0b1220';
+  miniCtx.fillStyle = '#050c1c';
   miniCtx.fillRect(0, 0, miniMap.width, miniMap.height);
 
-  const sx = miniMap.width / sceneCanvas.width;
-  const sy = miniMap.height / sceneCanvas.height;
+  const worldWidth = sceneCanvas.width / (window.devicePixelRatio || 1);
+  const worldHeight = sceneCanvas.height / (window.devicePixelRatio || 1);
+  const sx = miniMap.width / worldWidth;
+  const sy = miniMap.height / worldHeight;
   const cells = quadtree.collectCells();
 
-  miniCtx.strokeStyle = 'rgba(132, 168, 230, 0.24)';
-  cells.forEach((cell) => {
-    miniCtx.strokeRect(cell.x * sx, cell.y * sy, cell.w * sx, cell.h * sy);
-  });
+  miniCtx.strokeStyle = 'rgba(132, 168, 230, 0.25)';
+  cells.forEach((cell) => miniCtx.strokeRect(cell.x * sx, cell.y * sy, cell.w * sx, cell.h * sy));
 
   if (hoveredCell) {
-    miniCtx.fillStyle = 'rgba(244, 184, 96, 0.45)';
+    miniCtx.fillStyle = 'rgba(244, 184, 96, 0.5)';
     miniCtx.fillRect(hoveredCell.x * sx, hoveredCell.y * sy, hoveredCell.w * sx, hoveredCell.h * sy);
   }
 }
 
 function render() {
-  ctx.clearRect(0, 0, sceneCanvas.width, sceneCanvas.height);
+  const worldWidth = sceneCanvas.width / (window.devicePixelRatio || 1);
+  const worldHeight = sceneCanvas.height / (window.devicePixelRatio || 1);
+  ctx.clearRect(0, 0, worldWidth, worldHeight);
+
   items
     .slice()
     .sort((a, b) => a.depth - b.depth || a.z - b.z)
@@ -276,9 +346,7 @@ function rebuildTree() {
   const childrenByParent = new Map();
   for (const item of items) {
     const key = item.parent || 'root';
-    if (!childrenByParent.has(key)) {
-      childrenByParent.set(key, []);
-    }
+    if (!childrenByParent.has(key)) childrenByParent.set(key, []);
     childrenByParent.get(key).push(item);
   }
 
@@ -292,7 +360,8 @@ function rebuildTree() {
     btn.textContent = `${'· '.repeat(depth)}${node.name}`;
     btn.onclick = () => {
       selectedId = node.id;
-      updateDebugPanel([node], 0);
+      const factors = computePriority(node, node.x + node.w / 2, node.y + node.h / 2);
+      updateDebugPanel([{ ...node, priority: factors.total, factors }], 0);
       render();
       logStep(`reverse resolve: selected from layer tree → ${pathFor(node)}`);
     };
@@ -300,25 +369,26 @@ function rebuildTree() {
     layerTree.appendChild(li);
 
     const kids = (childrenByParent.get(node.id) || []).sort((a, b) => a.name.localeCompare(b.name));
-    for (const child of kids) {
-      addBranch(child, depth + 1);
-    }
+    for (const child of kids) addBranch(child, depth + 1);
   }
 
   rootNodes.forEach((node) => addBranch(node, 0));
 }
 
+function toWorldPosition(event) {
+  const rect = sceneCanvas.getBoundingClientRect();
+  const worldWidth = sceneCanvas.width / (window.devicePixelRatio || 1);
+  const worldHeight = sceneCanvas.height / (window.devicePixelRatio || 1);
+  const x = ((event.clientX - rect.left) / rect.width) * worldWidth;
+  const y = ((event.clientY - rect.top) / rect.height) * worldHeight;
+  return { x, y };
+}
+
 function wireEvents() {
   sceneCanvas.addEventListener('click', (event) => {
-    const rect = sceneCanvas.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * sceneCanvas.width;
-    const y = ((event.clientY - rect.top) / rect.height) * sceneCanvas.height;
-
-    if (mode === 'select') {
-      resolveSelection(x, y);
-    } else {
-      addRandomNode(x, y);
-    }
+    const { x, y } = toWorldPosition(event);
+    if (mode === 'select') resolveSelection(x, y);
+    else addRandomNode(x, y);
   });
 
   document.getElementById('selectModeBtn').addEventListener('click', () => {
@@ -338,14 +408,23 @@ function wireEvents() {
   document.getElementById('resetBtn').addEventListener('click', () => {
     logStep('scene reset requested');
     seedScene();
+    hoveredCell = null;
+    lastSelectedId = null;
     selectedInfo.textContent = 'No element selected.';
     candidateList.innerHTML = '';
     statsBadge.textContent = 'Resolution: --';
+    rebuildIndex();
+  });
+
+  window.addEventListener('resize', () => {
+    syncCanvasResolution();
+    render();
   });
 }
 
 wireEvents();
 seedScene();
+syncCanvasResolution();
 selectedInfo.textContent = 'No element selected.';
 candidateList.innerHTML = '<li>Click on the canvas to run the selection pipeline.</li>';
 logStep('engine ready: click to begin interaction');
