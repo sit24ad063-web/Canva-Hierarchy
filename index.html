@@ -3,15 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SceneGraph OS Demo</title>
+    <title>IntelliLayer · SceneGraph OS Demo</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <h1>SceneGraph OS</h1>
-          <p>Hierarchical Spatial Intelligence Demo</p>
+      <header class="topbar glass">
+        <div class="title-wrap">
+          <p class="eyebrow">Hackathon Demo</p>
+          <h1>IntelliLayer · SceneGraph OS</h1>
+          <p class="subtitle">Intent-aware hierarchical selection for overlapping, nested UI canvases.</p>
         </div>
         <div class="controls">
           <button id="selectModeBtn" class="active">Select Mode</button>
@@ -20,31 +21,49 @@
         </div>
       </header>
 
+      <section class="metrics">
+        <article class="metric glass"><span>Scene Model</span><strong>Scene Graph hierarchy</strong></article>
+        <article class="metric glass"><span>Selection Engine</span><strong>Hybrid geometry + scoring</strong></article>
+        <article class="metric glass"><span>Complexity</span><strong>Optimized recursive filtering</strong></article>
+      </section>
+
+      <section class="innovation-strip glass">
+        <h2>IntelliLayer Innovations</h2>
+        <div class="innovation-grid">
+          <article><h3>Scene Graph Canvas</h3><p>Nested parent-child layout model for real grouping awareness.</p></article>
+          <article><h3>Hybrid Selection Engine</h3><p>Bounding-box hit filtering plus multi-factor candidate scoring.</p></article>
+          <article><h3>Intent-Aware Resolution</h3><p>Contextual intent boost using hierarchy continuity and click proximity.</p></article>
+          <article><h3>Explainable Selection</h3><p>Transparent candidate ranking with per-factor score breakdown.</p></article>
+          <article><h3>Scalable Processing</h3><p>QuadTree indexing + recursive traversal for responsive large scenes.</p></article>
+        </div>
+      </section>
+
       <main class="workspace">
-        <aside class="panel left">
+        <aside class="panel left glass">
           <h2>Layer Hierarchy</h2>
+          <p class="helper">Click a layer to reverse-resolve selection through the scene graph.</p>
           <ul id="layerTree" class="tree"></ul>
         </aside>
 
-        <section class="canvas-zone">
-          <canvas id="sceneCanvas" width="1024" height="620"></canvas>
+        <section class="canvas-zone glass">
+          <canvas id="sceneCanvas" width="1280" height="720"></canvas>
           <div id="hud" class="hud">
             <span id="modeBadge">Mode: Select</span>
             <span id="statsBadge">Resolution: --</span>
           </div>
         </section>
 
-        <aside class="panel right">
-          <h2>Selection Debug</h2>
+        <aside class="panel right glass">
+          <h2>Explainable Selection Debug</h2>
           <div id="selectedInfo" class="block"></div>
           <h3>Ranked Candidates</h3>
           <ol id="candidateList" class="candidate-list"></ol>
           <h3>QuadTree Mini-Map</h3>
-          <canvas id="miniMap" width="260" height="180"></canvas>
+          <canvas id="miniMap" width="300" height="190"></canvas>
         </aside>
       </main>
 
-      <section class="log-section">
+      <section class="log-section glass">
         <div class="log-title">Resolution Engine Log</div>
         <ul id="logList" class="log-list"></ul>
       </section>
