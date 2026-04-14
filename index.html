@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SceneGraph OS Demo</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>SceneGraph OS</h1>
+          <p>Hierarchical Spatial Intelligence Demo</p>
+        </div>
+        <div class="controls">
+          <button id="selectModeBtn" class="active">Select Mode</button>
+          <button id="addModeBtn">Add Mode</button>
+          <button id="resetBtn">Reset Scene</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="panel left">
+          <h2>Layer Hierarchy</h2>
+          <ul id="layerTree" class="tree"></ul>
+        </aside>
+
+        <section class="canvas-zone">
+          <canvas id="sceneCanvas" width="1024" height="620"></canvas>
+          <div id="hud" class="hud">
+            <span id="modeBadge">Mode: Select</span>
+            <span id="statsBadge">Resolution: --</span>
+          </div>
+        </section>
+
+        <aside class="panel right">
+          <h2>Selection Debug</h2>
+          <div id="selectedInfo" class="block"></div>
+          <h3>Ranked Candidates</h3>
+          <ol id="candidateList" class="candidate-list"></ol>
+          <h3>QuadTree Mini-Map</h3>
+          <canvas id="miniMap" width="260" height="180"></canvas>
+        </aside>
+      </main>
+
+      <section class="log-section">
+        <div class="log-title">Resolution Engine Log</div>
+        <ul id="logList" class="log-list"></ul>
+      </section>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
