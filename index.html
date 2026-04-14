@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IntelliLayer</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; overflow: hidden; }
+      body { font-family: 'DM Sans', sans-serif; background: #0a0e1a; color: #e2e8f0; }
+      @keyframes glow { 0%,100%{ filter: drop-shadow(0 0 8px rgba(0,255,136,.3)); }50%{ filter: drop-shadow(0 0 16px rgba(0,255,136,.6)); }}
+      @keyframes pulseIn { from {opacity:0;transform:scale(.96);} to {opacity:1;transform:scale(1);} }
+      .panel { background: #0d1224; border-color: #1e293b; }
+      .tool-btn { transition: .2s ease; }
+      .tool-btn:hover { background: rgba(99,102,241,.2)!important; border-color: #6366f1!important; }
+      .tool-btn.active { background: rgba(0,255,136,.2)!important; border-color: #00ff88!important; color: #00ff88!important; }
+      .canvas-element { position: absolute; border: 2px solid transparent; user-select: none; cursor: move; transition: .2s; }
+      .canvas-element:hover { border-color: rgba(99,102,241,.7); box-shadow: 0 0 12px rgba(99,102,241,.25); }
+      .canvas-element.selected { border-color: #00ff88 !important; box-shadow: 0 0 20px rgba(0,255,136,.35); animation: glow 1.8s infinite; }
+      .canvas-element.candidate { border-color: rgba(250,204,21,.8) !important; }
+      .resize-handle { position: absolute; width: 14px; height: 14px; right: -6px; bottom: -6px; border-radius: 3px; background: #00ff88; box-shadow: 0 0 10px rgba(0,255,136,.5); cursor: nwse-resize; display: none; }
+      .canvas-element.selected .resize-handle { display: block; }
+      .phase { width: 10px; height: 10px; border-radius: 999px; background: #334155; }
+      .phase.active { box-shadow: 0 0 10px currentColor; }
+      .animate-in { animation: pulseIn .25s ease-out; }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-thumb { background: rgba(99,102,241,.6); border-radius: 6px; }
+    </style>
+  </head>
+  <body>
+    <div class="h-full w-full flex flex-col">
+      <header class="panel border-b px-5 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:linear-gradient(135deg,#00ff88,#00b4d8)">
+            <i data-lucide="layers" class="w-4 h-4" style="color:#0a0e1a"></i>
+          </div>
+          <div>
+            <h1 class="text-sm font-bold" style="font-family:'JetBrains Mono',monospace">IntelliLayer</h1>
+            <p class="text-xs text-slate-500">Drag • Click • Inspect • Create</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-6 text-xs" style="font-family:'JetBrains Mono',monospace">
+          <div class="flex items-center gap-2"><span id="p1" class="phase"></span>Geo</div>
+          <div class="flex items-center gap-2"><span id="p2" class="phase"></span>Traverse</div>
+          <div class="flex items-center gap-2"><span id="p3" class="phase"></span>Score</div>
+          <button id="btn-debug" class="tool-btn px-2 py-1 border rounded border-slate-600 text-slate-400">Debug</button>
+          <button id="btn-reset" class="px-2 py-1 border rounded border-slate-600 text-slate-400">Reset</button>
+        </div>
+      </header>
+
+      <div class="flex flex-1 overflow-hidden">
+        <aside class="panel w-64 border-r flex flex-col overflow-hidden">
+          <div class="p-4 border-b" style="border-color:#1e293b">
+            <p class="text-xs uppercase text-slate-500 mb-2" style="font-family:'JetBrains Mono',monospace">Tools</p>
+            <div class="space-y-2" id="tool-list">
+              <button class="tool-btn w-full text-left px-3 py-2 border rounded border-slate-600 text-slate-400 text-xs" data-tool="text">Add Text</button>
+              <button class="tool-btn w-full text-left px-3 py-2 border rounded border-slate-600 text-slate-400 text-xs" data-tool="rect">Add Card</button>
+              <button class="tool-btn w-full text-left px-3 py-2 border rounded border-slate-600 text-slate-400 text-xs" data-tool="button">Add Button</button>
+              <button class="tool-btn w-full text-left px-3 py-2 border rounded border-slate-600 text-slate-400 text-xs" data-tool="circle">Add Shape</button>
+            </div>
+          </div>
+          <div class="p-4 flex-1 overflow-auto">
+            <p class="text-xs uppercase text-slate-500 mb-2" style="font-family:'JetBrains Mono',monospace">Elements</p>
+            <div id="elements-list" class="space-y-1 text-xs"></div>
+          </div>
+        </aside>
+
+        <main id="canvas-area" class="relative flex-1 overflow-hidden" style="background: radial-gradient(circle at 50% 50%,#111827,#0a0e1a)">
+          <svg class="absolute inset-0 w-full h-full opacity-10">
+            <defs>
+              <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M 30 0 L 0 0 0 30" fill="none" stroke="#94a3b8" stroke-width="0.5"/></pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)"></rect>
+          </svg>
+          <div id="canvas-container" class="absolute inset-0"></div>
+        </main>
+
+        <aside class="panel w-80 border-l flex flex-col overflow-hidden">
+          <div class="p-4 border-b" style="border-color:#1e293b">
+            <p class="text-xs uppercase text-slate-500 mb-2" style="font-family:'JetBrains Mono',monospace">Scene Graph</p>
+            <div id="scene-tree" class="text-xs space-y-1"></div>
+          </div>
+          <div class="p-4 flex-1 overflow-auto">
+            <p class="text-xs uppercase text-slate-500 mb-2" style="font-family:'JetBrains Mono',monospace">Detection Result</p>
+            <div id="result-panel" class="text-xs text-slate-400">Click canvas to run detection…</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      const state = { elements: [], nextId: 0, selectedId: null, tool: null, debug: false };
+      let drag = null;
+      let resize = null;
+
+      function mkElement(type, x, y) {
+        const map = {
+          text: { w: 170, h: 56, bg: 'rgba(99,102,241,.2)', label: 'Text', content: 'Sample text' },
+          rect: { w: 170, h: 110, bg: 'rgba(244,63,94,.18)', label: 'Card', content: '' },
+          button: { w: 140, h: 52, bg: 'rgba(139,92,246,.24)', label: 'Button', content: 'Click me' },
+          circle: { w: 100, h: 100, bg: 'rgba(251,191,36,.18)', label: 'Shape', content: '' },
+        };
+        const m = map[type];
+        return { id: `el-${state.nextId++}`, type, label: m.label, content: m.content, x, y, w: m.w, h: m.h, z: state.elements.length + 1, bg: m.bg };
+      }
+
+      function score(el) {
+        const area = el.w * el.h;
+        return el.z * 3 + (100000 / Math.max(1000, area));
+      }
+
+      function hit(x, y) {
+        return state.elements
+          .filter((e) => x >= e.x && x <= e.x + e.w && y >= e.y && y <= e.y + e.h)
+          .map((e) => ({ ...e, score: Math.round(score(e) * 10) / 10 }))
+          .sort((a, b) => b.score - a.score);
+      }
+
+      function render() {
+        const canvas = document.getElementById('canvas-container');
+        canvas.innerHTML = '';
+        state.elements.forEach((e) => {
+          const div = document.createElement('div');
+          div.className = 'canvas-element';
+          div.id = `node-${e.id}`;
+          if (state.selectedId === e.id) div.classList.add('selected');
+          div.style.left = `${e.x}px`;
+          div.style.top = `${e.y}px`;
+          div.style.width = `${e.w}px`;
+          div.style.height = `${e.h}px`;
+          div.style.zIndex = e.z;
+          div.style.background = e.bg;
+          if (e.type === 'circle') div.style.borderRadius = '50%';
+          div.innerHTML = `<div style="padding:8px;font-size:12px;pointer-events:none">${e.content || ''}</div><span style="position:absolute;right:4px;bottom:2px;font-size:9px;color:#94a3b8">#${e.id.split('-')[1]}</span><div class="resize-handle"></div>`;
+
+          div.addEventListener('mousedown', (ev) => {
+            ev.stopPropagation();
+            if (ev.target.classList.contains('resize-handle')) {
+              resize = { id: e.id, sx: ev.clientX, sy: ev.clientY, w: e.w, h: e.h };
+            } else {
+              state.selectedId = e.id;
+              drag = { id: e.id, sx: ev.clientX, sy: ev.clientY, x: e.x, y: e.y };
+            }
+            render();
+          });
+          canvas.appendChild(div);
+        });
+
+        const list = document.getElementById('elements-list');
+        list.innerHTML = state.elements
+          .map((e) => `<div class="px-2 py-1 rounded ${state.selectedId === e.id ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}">${e.label} ${e.id}</div>`)
+          .join('');
+
+        const tree = document.getElementById('scene-tree');
+        tree.innerHTML = state.elements.map((e) => `<div class="px-2 py-1 rounded ${state.selectedId === e.id ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}">▸ ${e.label}</div>`).join('');
+      }
+
+      function animatePhases(done) {
+        const ids = ['p1', 'p2', 'p3'];
+        ids.forEach((id) => document.getElementById(id).classList.remove('active'));
+        ids.forEach((id, idx) => {
+          setTimeout(() => {
+            const el = document.getElementById(id);
+            el.classList.add('active');
+            el.style.background = ['#facc15', '#00b4d8', '#00ff88'][idx];
+            if (idx === 2) setTimeout(done, 120);
+          }, idx * 180);
+        });
+      }
+
+      document.getElementById('canvas-area').addEventListener('click', (ev) => {
+        const rect = ev.currentTarget.getBoundingClientRect();
+        const x = Math.round(ev.clientX - rect.left);
+        const y = Math.round(ev.clientY - rect.top);
+        if (state.tool) {
+          state.elements.push(mkElement(state.tool, x - 70, y - 30));
+          render();
+          return;
+        }
+
+        animatePhases(() => {
+          const candidates = hit(x, y);
+          document.querySelectorAll('.canvas-element').forEach((n) => n.classList.remove('candidate', 'selected'));
+          candidates.forEach((c) => document.getElementById(`node-${c.id}`)?.classList.add('candidate'));
+          const selected = candidates[0];
+          if (selected) {
+            state.selectedId = selected.id;
+            document.getElementById(`node-${selected.id}`)?.classList.add('selected');
+          }
+          render();
+
+          const panel = document.getElementById('result-panel');
+          if (!selected) {
+            panel.innerHTML = `<div class="animate-in rounded border border-rose-500/40 bg-rose-500/10 p-3 text-rose-300">No element at (${x},${y})</div>`;
+            return;
+          }
+          panel.innerHTML = `<div class="animate-in space-y-2"><div class="rounded border border-emerald-500/40 bg-emerald-500/10 p-3"><div class="font-semibold text-emerald-300">✓ ${selected.label}</div><div class="text-[11px] text-slate-300">score ${selected.score} · z ${selected.z}</div></div>${candidates.map((c, i) => `<div class="rounded border p-2 ${i===0?'border-emerald-500/40 text-emerald-300':'border-slate-700 text-slate-300'}">#${i+1} ${c.label} · ${c.score}</div>`).join('')}</div>`;
+        });
+      });
+
+      document.addEventListener('mousemove', (ev) => {
+        if (drag) {
+          const el = state.elements.find((x) => x.id === drag.id);
+          if (!el) return;
+          el.x = Math.max(0, Math.round((drag.x + ev.clientX - drag.sx) / 8) * 8);
+          el.y = Math.max(0, Math.round((drag.y + ev.clientY - drag.sy) / 8) * 8);
+          render();
+        }
+        if (resize) {
+          const el = state.elements.find((x) => x.id === resize.id);
+          if (!el) return;
+          el.w = Math.max(60, resize.w + ev.clientX - resize.sx);
+          el.h = Math.max(40, resize.h + ev.clientY - resize.sy);
+          render();
+        }
+      });
+      document.addEventListener('mouseup', () => { drag = null; resize = null; });
+
+      document.querySelectorAll('[data-tool]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('[data-tool]').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.tool = btn.dataset.tool;
+        });
+      });
+
+      document.getElementById('btn-reset').addEventListener('click', () => {
+        state.elements = [];
+        state.tool = null;
+        state.selectedId = null;
+        document.querySelectorAll('[data-tool]').forEach((b) => b.classList.remove('active'));
+        document.getElementById('result-panel').innerHTML = 'Click canvas to run detection…';
+        render();
+      });
+
+      document.getElementById('btn-debug').addEventListener('click', (ev) => {
+        state.debug = !state.debug;
+        ev.currentTarget.classList.toggle('active');
+        document.querySelectorAll('.canvas-element').forEach((el) => el.style.outline = state.debug ? '1px dashed rgba(244,63,94,.8)' : 'none');
+      });
+
+      render();
+      if (window.lucide) window.lucide.createIcons();
+    </script>
+  </body>
+</html>
